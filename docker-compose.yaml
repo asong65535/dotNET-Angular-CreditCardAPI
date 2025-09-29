@@ -10,10 +10,9 @@ services:
       - "4200:80"
     depends_on:
       - backend
-    environment:
-      - NODE_ENV=production
     networks:
       - payment-network
+    restart: always
 
   # Backend .NET API
   backend:
@@ -26,23 +25,68 @@ services:
       - db
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DevConnection=Server=db;Database=PaymentDB;User Id=sa;Password=YourStrongPassword123;TrustServerCertificate=True
+      - ConnectionStrings__DevConnection=Server=db;Database=PaymentDB;User Id=sa;Password=YourStrongPassword123;TrustServerCertificate=True;Connection Timeout=60
     networks:
       - payment-network
+    restart: on-failure
 
-  # MSSQL Database
+  # MSSQL Database with simple initialization
   db:
-    build:
-      context: .
-      dockerfile: Database/Dockerfile
+    image: mcr.microsoft.com/mssql/server:2022-latest
     ports:
       - "1433:1433"
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=YourStrongPassword123
-      - MSSQL_PID=Express
+      - MSSQL_PID=Developer
     volumes:
-      - mssql-data:/var/opt/mssql/data
+      - mssql-data:/var/opt/mssql
+      - ./Database/init-db.sql:/init-db.sql
+    networks:
+      - payment-network
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P YourStrongPassword123 -Q "SELECT 1" || exit 1
+      interval: 10s
+      retries: 5
+      start_period: 20s
+      timeout: 3s
+
+  # Separate container for DB setup that uses tools image
+  db-init:
+    image: mcr.microsoft.com/mssql-tools
+    depends_on:
+      - db
+    volumes:
+      - ./Database/init-db.sql:/init-db.sql
+    # Command to wait for SQL Server to be ready and then run script
+    command: >
+      bash -c '
+        # Wait for SQL Server to start and be accessible
+        echo "Waiting for SQL Server to start..."
+        sleep 30s
+      
+        # Retry logic for database connection
+        for i in {1..30}; do
+          if /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrongPassword123 -Q "SELECT 1" &> /dev/null; then
+            echo "SQL Server is now accessible."
+            break
+          fi
+          echo "Attempt $i: SQL Server not ready yet..."
+          sleep 2
+        done
+      
+        # Run initialization script
+        echo "Running initialization script..."
+        /opt/mssql-tools/bin/sqlcmd -S db -U sa -P YourStrongPassword123 -i /init-db.sql
+      
+        # Report success or failure
+        if [ $? -eq 0 ]; then
+          echo "Database initialization completed successfully."
+        else
+          echo "Database initialization failed."
+          exit 1
+        fi
+      '
     networks:
       - payment-network
 
