@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mssql-deployment
+  namespace: payment-app
+  labels:
+    app: mssql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mssql
+  template:
+    metadata:
+      labels:
+        app: mssql
+    spec:
+      containers:
+        - name: mssql
+          image: mssql-image:latest # Use your actual image name
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1433
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: MSSQL_SA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mssql-secrets
+                  key: SA_PASSWORD
+            - name: MSSQL_PID
+              value: "Express"
+          volumeMounts:
+            - name: mssql-data
+              mountPath: /var/opt/mssql/data
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+      volumes:
+        - name: mssql-data
+          persistentVolumeClaim:
+            claimName: mssql-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql-service
+  namespace: payment-app
+spec:
+  selector:
+    app: mssql
+  ports:
+    - port: 1433
+      targetPort: 1433
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mssql-secrets
+  namespace: payment-app
+type: Opaque
+data:
+  SA_PASSWORD: WW91clN0cm9uZ1Bhc3N3b3JkMTIz # "YourStrongPassword123" in base64

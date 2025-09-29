@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payment-app-ingress
+  namespace: payment-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # Add SSL annotations if needed
+    # kubernetes.io/tls-acme: "true"
+    # certmanager.k8s.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+    - host: payment.example.com  # Replace with your actual domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-app-frontend-service
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-api-service
+                port:
+                  number: 8080
+  # Uncomment for SSL
+  # tls:
+  # - hosts:
+  #   - payment.example.com
+  #   secretName: payment-tls-secret

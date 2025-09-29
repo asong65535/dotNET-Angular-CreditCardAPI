@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Frontend Angular App
+  frontend:
+    build:
+      context: .
+      dockerfile: PaymentApp/Dockerfile
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=production
+    networks:
+      - payment-network
+
+  # Backend .NET API
+  backend:
+    build:
+      context: .
+      dockerfile: PaymentAPI/Dockerfile
+    ports:
+      - "5173:8080"
+    depends_on:
+      - db
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DevConnection=Server=db;Database=PaymentDB;User Id=sa;Password=YourStrongPassword123;TrustServerCertificate=True
+    networks:
+      - payment-network
+
+  # MSSQL Database
+  db:
+    build:
+      context: .
+      dockerfile: Database/Dockerfile
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrongPassword123
+      - MSSQL_PID=Express
+    volumes:
+      - mssql-data:/var/opt/mssql/data
+    networks:
+      - payment-network
+
+networks:
+  payment-network:
+    driver: bridge
+
+volumes:
+  mssql-data:
+    driver: local
