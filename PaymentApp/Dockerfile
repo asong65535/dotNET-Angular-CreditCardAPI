@@ -24,7 +24,7 @@ FROM nginx:alpine
 WORKDIR /usr/share/nginx/html
 
 # Copy built files from the build stage
-COPY --from=build /app/dist/payment-app/browser/ ./
+COPY --from=build /app/dist/PaymentApp/browser/ ./
 
 # Copy custom nginx configuration
 COPY PaymentApp/nginx.conf /etc/nginx/conf.d/default.conf
